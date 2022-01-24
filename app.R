@@ -1,47 +1,28 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+library(magrittr)
 
 # Define UI for application that draws a histogram
 ui <- shiny::fluidPage(
-
-    # Application title
+  # Application title
   shiny::titlePanel("RGCS Data Portal"),
-
-    # Sidebar with a slider input for number of bins 
-  shiny::sidebarLayout(
-    shiny::sidebarPanel(
-      shiny::sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
-
-        # Show a plot of the generated distribution
-    shiny::mainPanel(
-      shiny::plotOutput("distPlot")
-        )
-    )
+  shiny::fileInput("file1",
+                   "Upload your csv or xlsx file:"),
+  shiny::textOutput("filename"),
+  DT::dataTableOutput("datatable")
 )
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
-
-    output$distPlot <- shiny::renderPlot({
-        # generate bins based on input$bins from ui.R
-        x    <- faithful[, 2]
-        bins <- seq(min(x), max(x), length.out = input$bins + 1)
-
-        # draw the histogram with the specified number of bins
-        hist(x, breaks = bins, col = 'darkgray', border = 'white')
-    })
+  output$filename <- shiny::renderText({
+    shiny::req(is.character(input$file1$datapath))
+    paste0("The name of the uploaded file is: ", input$file1$name)
+  })
+  output$datatable <- DT::renderDataTable({
+    shiny::req(is.character(input$file1$datapath))
+    datatable <-
+      readxl::read_excel(input$file1$datapath) %>% 
+      DT::datatable(options = list(paging = F, searching = F))
+  })
 }
 
-# Run the application 
+# Run the application
 shiny::shinyApp(ui = ui, server = server)
