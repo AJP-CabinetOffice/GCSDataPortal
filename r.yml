@@ -1,0 +1,13 @@
+---
+packages:
+  - cran_mirror: https://cran.r-project.org
+    num_threads: 2
+    packages:
+      - name: aws.s3
+      - name: dplyr
+      - name: DT
+      - name: magrittr
+      - name: readr
+      - name: readxl
+      - name: shiny
+      - name: tibble
