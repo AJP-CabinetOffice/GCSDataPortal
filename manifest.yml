@@ -1,4 +1,4 @@
 ---
 applications:
-- name: RGCS-TEST
+- name: RGCS-TEST-2
   memory: 256M

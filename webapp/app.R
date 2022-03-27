@@ -1,125 +1,171 @@
 library(magrittr)
 
+# Load functions.
+source("functions.R")
+
 # Define variables
 bucket = "ashley-poole-rgcs"
 object_log = "rgcs_people_continuous/logs/submission_log.csv"
+## This is used in functions that check the col_names.
+col_check_prefix <- "check_passed_"
 
-# Load requisite data
+# Read in the configuration file.
+col_config <- 
+  readr::read_csv(
+    "column_config.csv",
+    col_types = readr::cols(.default = "c")
+  )
+
+# For use by quality checks
+allowed_colnames <- 
+  readr::read_csv("template_csvutf8.csv") %>% 
+  colnames()
 
 # Define UI
 ui <- shiny::fluidPage(
-  # Application title
-  shiny::titlePanel("RGCS Data Portal"),
-  shiny::fileInput("file1",
-                   "Upload your file:"),
-  shiny::textOutput("filename"),
-  DT::dataTableOutput("datatable")
+  shiny::tabsetPanel(
+    shiny::tabPanel(
+      shiny::titlePanel("RGCS Data Portal"),
+      shiny::fileInput("file1",
+                       "Upload your file:"),
+
+      shiny::uiOutput("panel_feedback"),
+      # shiny::uiOutput("panel_filetype_error"),
+      # shiny::uiOutput("panel_columnname_error"),
+      DT::dataTableOutput("datatable")
+    ),
+    shiny::tabPanel(
+      shiny::titlePanel("About")
+    )
+  )
 )
 
 # Define server logic
 server <- function(input, output) {
-  output$datatable <- DT::renderDataTable({
-    shiny::req(is.character(input$file1$datapath))
+  
+  success <- shiny::reactiveVal(T)
+  
+  checkColumnContents <- function(
+    col_name,
+    col_type,
+    allowed_length_per_entry = NULL
+  ){
     
-    data <-
-      readxl::read_excel(input$file1$datapath) %>%
-      dplyr::mutate(
-        passes_qa_organisation = T,
-        passes_qa_teamname = T,
-        passes_qa_roletitle = T,
-        fte_clean = as.numeric(fte),
-        passes_qa_fte = dplyr::case_when(is.na(as.numeric(fte)) ~ F,
-                                         T ~ T),
-        passes_qa_grade = dplyr::case_when(
-          grade %in% c(
-            "AA",
-            "AO",
-            "EO",
-            "HEO",
-            "SEO",
-            "G7",
-            "G6",
-            "SCS1",
-            "SCS2",
-            "SCS3",
-            "Other"
-          ) ~ T,
-          T ~ F,
-        ),
-        passes_qa_salary = dplyr::case_when(
-          is.na(as.numeric(salary)) ~ F,
-          T ~ T
-        ),
-        passes_qa_discipline = dplyr::case_when(
-          discipline %in% c(
-            "External affairs",
-            "Marketing",
-            "Internal communication",
-            "Strategic communication",
-            "Media"
-          ) ~ T,
-          T ~ F,
-        ),
-        passes_qa_job_location = T,
-        passes_qa_vacant = T,
-        passes_qa_contract_type = T
+    
+    full_result <- list(
+      result = result,
+      message = message
+    )
+    
+    return(full_result)
+  }
+  
+  readData <- shiny::reactive({
+    shiny::req(input$file1$datapath)
+    v <- try(readxl::read_excel(input$file1$datapath))
+    if("try-error" %in% class(v)){
+      v <- try(read.csv(input$file1$datapath) %>% tibble::tibble())
+    }
+    return(v)
+  })
+  
+  checkAllColumnsContentsReactive <- shiny::reactive({  
+    checkAllColumnsContents(readData(), col_config)
+    })
+  
+  didAllColumnsContentsPassReactive <- shiny::reactive({
+    df <- checkAllColumnsContentsReactive()
+    didAllColumnsContentsPass(df, col_config, col_check_prefix)
+  })
+  
+  wasSubmissionAcceptedReactive <- shiny::reactive({
+    results <- 
+      c(didAllColumnsContentsPassReactive())
+
+    overall_result <- as.logical(prod(results))
+  })
+  
+  output$panel_feedback <- shiny::renderUI({
+    result <- wasSubmissionAcceptedReactive()
+    if(result){
+      shiny::HTML("Success! Thank you for your submission.")
+    } else{
+      shiny::HTML("Your submission was not accepted.<br>Items that require your attention are higlighted in yellow.<br>Please correct the highlighted data and resubmit.")
+    }
+  })
+  
+  output$datatable <- DT::renderDataTable({
+    result <- wasSubmissionAcceptedReactive()
+    shiny::req(!result)
+    df_tested <- checkAllColumnsContentsReactive()
+
+    col_names_raw_data <- 
+      colnames(df_tested)[colnames(df_tested) %in% col_config$col_id]
+    
+    col_names_qa <-
+      colnames(df_tested)[colnames(df_tested) %>% stringr::str_detect(pattern = paste0("^", col_check_prefix))]
+    
+    qa_col_indices <- 
+      match(
+        col_names_qa,
+        colnames(df_tested)
       )
     
-    qa_col_indices <-
-      match(
-        c(
-          "passes_qa_fte",
-          "fte_clean", 
-          "passes_qa_organisation",
-          "passes_qa_teamname",
-          "passes_qa_roletitle",
-          "passes_qa_grade",
-          "passes_qa_salary",
-          "passes_qa_discipline",
-          "passes_qa_job_location",
-          "passes_qa_vacant",
-          "passes_qa_contract_type"
-          ), 
-            colnames(data))
-    
-    datatable <-
-      data %>%
+    df_tested %>% 
       DT::datatable(options = list(
         paging = F,
         searching = F,
+        ## Make the qa columns invisible.
         columnDefs = list(list(
           visible = F, targets = qa_col_indices
         ))
-      )) %>%
+      )) %>% 
       DT::formatStyle(
-        c(
-          "organisation",
-          "teamname",
-          "roletitle",
-          "fte",
-          "grade",
-          "salary",
-          "discipline",
-          "job_location",
-          "vacant",
-          "contract_type"
-        ),
-        c("passes_qa_organisation",
-          "passes_qa_teamname",
-          "passes_qa_roletitle",
-          "passes_qa_fte",
-          "passes_qa_grade",
-          "passes_qa_salary",
-          "passes_qa_discipline",
-          "passes_qa_job_location",
-          "passes_qa_vacant",
-          "passes_qa_contract_type"
-        ),
-        backgroundColor = DT::styleEqual(c(T, F), c("lightblue", "yellow")))
+        col_names_raw_data,
+        col_names_qa,
+        backgroundColor = DT::styleEqual(c(T, F), c("white", "yellow")))
+  })
+  
+  output$panel_filetype_error <- shiny::renderUI({
+    ## If the data cannot be read in but a file has been uploaded, then print the message.
+    if("try-error" %in% class(readData()) & !is.null(input$file1$name)){
+      success(F)
+      shiny::HTML("Error: The filetype was not valid. You must submit a file of type .csv, .xlsx or .xls")
+    } else {
+      success(T)
+      NULL
+      }
+  })
+  
+  passesColNameCheck <- shiny::reactive({
     
-    #UpdateSubmissionLog()
+    result <- 
+      readData() %>% 
+      colnames() %>% 
+      purrr::map(.f = function(colname){
+        res = F
+        if(colname %in% allowed_colnames){
+          res = T
+        }
+        return(res)
+      })
     
-    return(datatable)
+    overall_result = prod(as.numeric(result))
+    
+    return(overall_result)
+  })
+
+  output$panel_columnname_error <- shiny::renderUI({
+    ## If the data has been read in but the columns are incorrect, then print the message.
+    if("tbl_df" %in% class(readData()) & !passesColNameCheck()){
+      success(F)
+      shiny::HTML(
+        "Error: The column names were invalid. Ensure the column names are the same as those provided in the template. Additional columns are not allowed."
+        )
+    } else {
+      success(T)
+      NULL
+      }
   })
   
   UpdateSubmissionLog <- shiny::reactive({
