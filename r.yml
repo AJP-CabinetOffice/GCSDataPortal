@@ -7,7 +7,12 @@ packages:
       - name: dplyr
       - name: DT
       - name: magrittr
+      - name: purrr
       - name: readr
       - name: readxl
+      - name: rjson
+      - name: rlang
       - name: shiny
+      - name: stringr
       - name: tibble
+      - name: tidyr

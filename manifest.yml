@@ -1,4 +1,4 @@
 ---
 applications:
-- name: RGCS-TEST-2
+- name: RGCS-DATA-PORTAL
   memory: 256M

@@ -3,9 +3,18 @@ library(magrittr)
 # Load functions.
 source("functions.R")
 
-# Define variables
-bucket = "ashley-poole-rgcs"
+## Set up AWS credentials and variables
+
+env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
+
+Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
+           "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
+           "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
+
+s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
+
 object_log = "rgcs_people_continuous/logs/submission_log.csv"
+
 ## This is used in functions that check the col_names.
 col_check_prefix <- "check_passed_"
 
@@ -28,7 +37,7 @@ ui <- shiny::fluidPage(
       shiny::titlePanel("RGCS Data Portal"),
       shiny::fileInput("file1",
                        "Upload your file:"),
-
+      
       shiny::uiOutput("panel_feedback"),
       # shiny::uiOutput("panel_filetype_error"),
       # shiny::uiOutput("panel_columnname_error"),
@@ -66,6 +75,9 @@ server <- function(input, output) {
     if("try-error" %in% class(v)){
       v <- try(read.csv(input$file1$datapath) %>% tibble::tibble())
     }
+    
+    
+    
     return(v)
   })
   
@@ -87,6 +99,9 @@ server <- function(input, output) {
   
   output$panel_feedback <- shiny::renderUI({
     result <- wasSubmissionAcceptedReactive()
+    
+    writeSubmissionToS3()
+    
     if(result){
       shiny::HTML("Success! Thank you for your submission.")
     } else{
@@ -195,6 +210,49 @@ server <- function(input, output) {
                           readr::write_csv,
                           object = object_log,
                           bucket = bucket)
+  })
+  
+  writeSubmissionToS3 <- shiny::reactive({
+    shiny::req(input$file1$datapath)
+    result <- wasSubmissionAcceptedReactive()
+    
+    sysdatetime <- Sys.time() %>% 
+      format("%Y-%m-%dT%H:%M:%S_%Z")
+    
+    folder_qa <- if(result){
+      "qa_passed"
+    } else {
+      "qa_failed"
+    }
+    
+    file_uniqueness <- input$file1$datapath %>% 
+      stringr::str_split(pattern = "/") %>% 
+      unlist() %>% 
+      tail(n = 2) %>% 
+      head(n = 1)
+    
+    folder_name <- paste(sysdatetime, file_uniqueness)
+    
+    full_filename_raw <- 
+      paste(folder_qa, folder_name, "RAW OFFICIAL-SENSITIVE.csv", sep = "/")
+  
+    aws.s3::put_object(
+      input$file1$datapath,
+      full_filename_raw,
+      s3_bucket
+    ) 
+    
+    analysis_result <- checkAllColumnsContentsReactive()
+    
+    full_filename_qa <- 
+      paste(folder_qa, folder_name, "QA OFFICIAL-SENSITIVE.csv", sep = "/")
+    
+    aws.s3::s3write_using(
+      analysis_result,
+      readr::write_excel_csv,
+      object = full_filename_qa,
+      bucket = s3_bucket
+    )
   })
 }
 
