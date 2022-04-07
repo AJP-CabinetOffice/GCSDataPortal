@@ -32,21 +32,22 @@ allowed_colnames <-
 
 # Define UI
 ui <- shiny::fluidPage(
-  shiny::tabsetPanel(
-    shiny::tabPanel(
-      shiny::titlePanel("RGCS Data Portal"),
-      shiny::fileInput("file1",
-                       "Upload your file:"),
-      
-      shiny::uiOutput("panel_feedback"),
-      # shiny::uiOutput("panel_filetype_error"),
-      # shiny::uiOutput("panel_columnname_error"),
-      DT::dataTableOutput("datatable")
-    ),
-    shiny::tabPanel(
-      shiny::titlePanel("About")
-    )
-  )
+  shiny::column(1),
+  shiny::column(10,
+    shiny::br(),
+    shiny::br(),
+    shiny::titlePanel("RGCS Data Portal"),
+    shiny::br(),
+    shiny::fileInput("file1",
+                     "Upload your file:"),
+    shiny::br(),
+    shiny::uiOutput("panel_feedback"),
+    # shiny::uiOutput("panel_filetype_error"),
+    # shiny::uiOutput("panel_columnname_error"),
+    shiny::br(),
+    DT::dataTableOutput("datatable")
+  ),
+  shiny::column(1)
 )
 
 # Define server logic
