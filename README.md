@@ -13,12 +13,11 @@ While authenticated on CloudFoundry, navigate to the top level directory in this
 ### Critical 
 
 - Complete data checking
-  - Check all available columns are expected
-  - Warn users that the extra columns have not been used
+  - Check that all columns are present.
+  - Reject if extra columns exist that are not expected.
 - Setup dependabot
 
 ### Nice to have
 
-- Create a script that sorts the data
 - Make the webapp more visually appealing
 - Track usage
