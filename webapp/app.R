@@ -5,13 +5,13 @@ source("functions.R")
 
 ## Set up AWS credentials and variables
 
-env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
-
-Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
-           "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
-           "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
-
-s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
+# env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
+# 
+# Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
+#            "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
+#            "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
+# 
+# s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
 
 object_log = "rgcs_people_continuous/logs/submission_log.csv"
 
@@ -42,8 +42,6 @@ ui <- shiny::fluidPage(
                      "Upload your file:"),
     shiny::br(),
     shiny::uiOutput("panel_feedback"),
-    # shiny::uiOutput("panel_filetype_error"),
-    # shiny::uiOutput("panel_columnname_error"),
     shiny::br(),
     DT::dataTableOutput("datatable")
   ),
@@ -71,15 +69,26 @@ server <- function(input, output) {
   }
   
   readData <- shiny::reactive({
+    
     shiny::req(input$file1$datapath)
-    v <- try(readxl::read_excel(input$file1$datapath))
-    if("try-error" %in% class(v)){
-      v <- try(read.csv(input$file1$datapath) %>% tibble::tibble())
+    
+    if(input$file1$type == "text/csv"){
+      data <- tryCatch(
+        readr::read_csv(input$file1$datapath),
+        error = function(e){return(F)}) 
+    } else {
+      data <- F
     }
     
-    
-    
-    return(v)
+    return(data)
+  })
+  
+  didDataReadReactive <- shiny::reactive({
+    if(tibble::is_tibble(readData())){
+      T
+    } else {
+      F
+    }
   })
   
   checkAllColumnsContentsReactive <- shiny::reactive({  
@@ -92,27 +101,42 @@ server <- function(input, output) {
   })
   
   wasSubmissionAcceptedReactive <- shiny::reactive({
-    results <- 
+    
+    results_cols <- 
       c(didAllColumnsContentsPassReactive())
 
-    overall_result <- as.logical(prod(results))
+    overall_result <- as.logical(prod(results_cols))
+    
   })
   
   output$panel_feedback <- shiny::renderUI({
-    result <- wasSubmissionAcceptedReactive()
     
-    writeSubmissionToS3()
+    result_data_readin <- didDataReadReactive()
     
-    if(result){
+    print(result_data_readin)
+    
+    result_cols <- if(result_data_readin){
+      wasSubmissionAcceptedReactive()
+    } else {
+      F
+    }
+    
+    # writeSubmissionToS3()
+    
+    if(result_cols){
       shiny::HTML("Success! Thank you for your submission.")
-    } else{
+    } else if(!result_data_readin){
+      shiny::HTML("Your submission was not accepted.<br>All submissions must be in CSV format. Please resubmit in the correct format.")
+    } else if(!result_cols){
       shiny::HTML("Your submission was not accepted.<br>Items that require your attention are higlighted in yellow.<br>Please correct the highlighted data and resubmit.")
+      
     }
   })
   
   output$datatable <- DT::renderDataTable({
-    result <- wasSubmissionAcceptedReactive()
-    shiny::req(!result)
+    shiny::req(didDataReadReactive())
+    result_cols <- wasSubmissionAcceptedReactive()
+    shiny::req(!result_cols)
     df_tested <- checkAllColumnsContentsReactive()
 
     col_names_raw_data <- 
@@ -142,20 +166,9 @@ server <- function(input, output) {
         backgroundColor = DT::styleEqual(c(T, F), c("white", "yellow")))
   })
   
-  output$panel_filetype_error <- shiny::renderUI({
-    ## If the data cannot be read in but a file has been uploaded, then print the message.
-    if("try-error" %in% class(readData()) & !is.null(input$file1$name)){
-      success(F)
-      shiny::HTML("Error: The filetype was not valid. You must submit a file of type .csv, .xlsx or .xls")
-    } else {
-      success(T)
-      NULL
-      }
-  })
-  
   passesColNameCheck <- shiny::reactive({
     
-    result <- 
+    result_cols <- 
       readData() %>% 
       colnames() %>% 
       purrr::map(.f = function(colname){
@@ -166,23 +179,11 @@ server <- function(input, output) {
         return(res)
       })
     
-    overall_result = prod(as.numeric(result))
+    overall_result = prod(as.numeric(result_cols))
     
     return(overall_result)
   })
 
-  output$panel_columnname_error <- shiny::renderUI({
-    ## If the data has been read in but the columns are incorrect, then print the message.
-    if("tbl_df" %in% class(readData()) & !passesColNameCheck()){
-      success(F)
-      shiny::HTML(
-        "Error: The column names were invalid. Ensure the column names are the same as those provided in the template. Additional columns are not allowed."
-        )
-    } else {
-      success(T)
-      NULL
-      }
-  })
   
   UpdateSubmissionLog <- shiny::reactive({
     entity_code = "TEST_TEST"
@@ -215,12 +216,12 @@ server <- function(input, output) {
   
   writeSubmissionToS3 <- shiny::reactive({
     shiny::req(input$file1$datapath)
-    result <- wasSubmissionAcceptedReactive()
+    result_cols <- wasSubmissionAcceptedReactive()
     
     sysdatetime <- Sys.time() %>% 
       format("%Y-%m-%dT%H:%M:%S_%Z")
     
-    folder_qa <- if(result){
+    folder_qa <- if(result_cols){
       "qa_passed"
     } else {
       "qa_failed"
