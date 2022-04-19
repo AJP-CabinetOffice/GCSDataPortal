@@ -13,16 +13,12 @@ While authenticated on CloudFoundry, navigate to the top level directory in this
 ### Critical 
 
 - Complete data checking
-  - Check filetype is correct
   - Check all available columns are expected
   - Warn users that the extra columns have not been used
-  - Check each column has data as expected
-- Push submitted data to S3 bucket
-- Add explanatory text
 - Setup dependabot
 
 ### Nice to have
 
 - Create a script that sorts the data
 - Make the webapp more visually appealing
-- Add cookies
+- Track usage
