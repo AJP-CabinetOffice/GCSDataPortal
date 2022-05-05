@@ -57,7 +57,6 @@ didAllColumnsContentsPass <- function(
   col_config,
   col_check_prefix
 ){
-  
   col_names <- 
     col_config$col_id
   
@@ -69,9 +68,17 @@ didAllColumnsContentsPass <- function(
     dplyr::summarise(
       dplyr::across(dplyr::everything(), ~ as.logical(prod(.x)))
     ) %>%
-    tidyr::pivot_longer(dplyr::everything()) %>% 
-    dplyr::summarise(check_passed_ALL = as.logical(prod(value))) %>% 
+    tidyr::pivot_longer(dplyr::everything()) %>%
+    ## If there is an NA value, then assume that the test failed. The na value
+    ## is because a test has not been specified for that column.
+    dplyr::mutate(value = dplyr::case_when(
+      is.na(value) ~ F,
+      T ~ T
+    )) %>% 
+    dplyr::summarise(check_passed_ALL = as.logical(prod(value))) %>%
     dplyr::pull(check_passed_ALL)
+
+  return(passed_checks)
 }
 
 generateUserMessageColumnContents <- function(columns_contents_passed){

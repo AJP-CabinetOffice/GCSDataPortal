@@ -1,4 +1,6 @@
 ---
 applications:
-- name: RGCS-DATA-PORTAL
+- name: gcsdataportal
   memory: 256M
+  services:
+  - RGCS-Data-Portal-Bucket-Production

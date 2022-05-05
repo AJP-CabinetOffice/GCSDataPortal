@@ -10,7 +10,7 @@ source("functions.R")
 # Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
 #            "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
 #            "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
-# 
+
 # s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
 
 object_log = "rgcs_people_continuous/logs/submission_log.csv"
@@ -21,14 +21,14 @@ col_check_prefix <- "check_passed_"
 # Read in the configuration file.
 col_config <- 
   readr::read_csv(
-    "column_config.csv",
+    "2022-05-05 Column configuration OFFICIAL - Sheet 1.csv",
     col_types = readr::cols(.default = "c")
-  )
+  ) %>% 
+  dplyr::filter(status == "Included")
 
 # For use by quality checks
 allowed_colnames <- 
-  readr::read_csv("template_csvutf8.csv") %>% 
-  colnames()
+  col_config$col_id
 
 # Define UI
 ui <- shiny::fluidPage(
@@ -36,7 +36,9 @@ ui <- shiny::fluidPage(
   shiny::column(10,
     shiny::br(),
     shiny::br(),
-    shiny::titlePanel("RGCS Data Portal"),
+    shiny::titlePanel("GCS Data Portal"),
+    shiny::br(),
+    shiny::HTML("This data portal is for use in the GCS Data Audit."),
     shiny::br(),
     shiny::fileInput("file1",
                      "Upload your file:"),
@@ -101,19 +103,15 @@ server <- function(input, output) {
   })
   
   wasSubmissionAcceptedReactive <- shiny::reactive({
-    
     results_cols <- 
       c(didAllColumnsContentsPassReactive())
-
-    overall_result <- as.logical(prod(results_cols))
     
+    overall_result <- as.logical(prod(results_cols))
+    return(overall_result)
   })
   
   output$panel_feedback <- shiny::renderUI({
-    
     result_data_readin <- didDataReadReactive()
-    
-    print(result_data_readin)
     
     result_cols <- if(result_data_readin){
       wasSubmissionAcceptedReactive()
@@ -121,8 +119,8 @@ server <- function(input, output) {
       F
     }
     
-    # writeSubmissionToS3()
     
+    # writeSubmissionToS3()
     if(result_cols){
       shiny::HTML("Success! Thank you for your submission.")
     } else if(!result_data_readin){
