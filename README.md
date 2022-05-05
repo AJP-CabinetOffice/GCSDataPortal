@@ -1,4 +1,4 @@
-# RGCSDataPortal
+# GCS Data Portal
 
 This webapp allows users from all government organisations to submit HR data to the Government Communications Service. It is hosted on PaaS. 
 
