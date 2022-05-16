@@ -6,6 +6,7 @@ packages:
       - name: aws.s3
       - name: dplyr
       - name: DT
+      - name: janitor
       - name: magrittr
       - name: purrr
       - name: readr
