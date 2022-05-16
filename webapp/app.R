@@ -3,17 +3,17 @@ library(magrittr)
 # Load functions.
 source("functions.R")
 
-debug = T
+debug = F
 
 ## Set up AWS credentials and variables
 
-env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
-
-Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
-           "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
-           "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
-
-s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
+# env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
+# 
+# Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
+#            "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
+#            "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
+#
+# s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
 
 object_log = "rgcs_people_continuous/logs/submission_log.csv"
 
@@ -161,7 +161,7 @@ server <- function(input, output) {
         c(
           checkAllColumnsArePresentReactive(),
           checkNoExtraColsReactive(),
-          didAllColumnsContentsPassReactive(),
+          didAllColumnsContentsPassReactive()
         )
       
       overall_result <- as.logical(prod(results))
@@ -224,7 +224,7 @@ server <- function(input, output) {
               result_column_contents)
     }
     
-    writeSubmissionToS3()
+    #writeSubmissionToS3()
     
     if (result_data_readin &
         result_all_cols_present &
