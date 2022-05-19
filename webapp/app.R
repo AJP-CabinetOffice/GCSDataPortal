@@ -7,15 +7,13 @@ debug = F
 
 ## Set up AWS credentials and variables
 
-# env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
-# 
-# Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
-#            "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
-#            "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
-#
-# s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
+env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
 
-object_log = "rgcs_people_continuous/logs/submission_log.csv"
+Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
+           "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
+           "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
+
+s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
 
 ## This is used in functions that check the col_names.
 col_check_prefix <- "check_passed_"
@@ -224,7 +222,7 @@ server <- function(input, output) {
               result_column_contents)
     }
     
-    #writeSubmissionToS3()
+    writeSubmissionToS3()
     
     if (result_data_readin &
         result_all_cols_present &
@@ -304,36 +302,6 @@ server <- function(input, output) {
     contents_result = prod(as.numeric(result))
     
     return(contents_result)
-  })
-  
-  
-  UpdateSubmissionLog <- shiny::reactive({
-    entity_code = "TEST_TEST"
-    server_datetime <- Sys.time()
-    new_filename <- paste0(
-      format(server_datetime, "%Y-%m-%d_%H-%M-%S_%Z "),
-      entity_code,
-      " OFF-SEN",
-      ".xlsx"
-    )
-    
-    submission_log <-
-      aws.s3::s3read_using(readr::read_csv,
-                           object = object_log,
-                           bucket = bucket)
-    
-    new_submission_log <-
-      submission_log %>%
-      tibble::add_row(
-        datetime = server_datetime,
-        raw_filename = input$file1$name,
-        new_filename = new_filename
-      )
-    
-    aws.s3::s3write_using(new_submission_log,
-                          readr::write_csv,
-                          object = object_log,
-                          bucket = bucket)
   })
   
   writeSubmissionToS3 <- shiny::reactive({
