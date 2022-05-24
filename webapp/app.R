@@ -21,7 +21,7 @@ col_check_prefix <- "check_passed_"
 # Read in the configuration file.
 col_config_raw <-
   readr::read_csv(
-    "2022-05-11 Column configuration OFFICIAL - Sheet 1 (5).csv",
+    "~/Codes/GCSDataPortal/webapp/2022-05-20 Column configuration OFFICIAL - Sheet 1.csv",
     col_types = readr::cols(.default = "c")
   ) %>%
   ## Remove withdrawn columns
@@ -43,6 +43,27 @@ org_regex <-
   c("99", "**") %>%
   makeRegexFromCharacterVector()
 
+lad_other_values <- 
+  readr::read_csv(
+    "2022-05-23_15-41-49_BST Other values LAD lookup OFFICIAL.csv",
+    col_types = "c",
+    name_repair = janitor::make_clean_names
+  )
+
+lad_regex <- 
+  readr::read_csv(
+    "2022-05-24_11-25-05_BST Postcode to LAD lookup OFFICIAL.csv",
+    col_types = "c",
+    col_select = 3,
+    name_repair = janitor::make_clean_names
+  ) %>%
+  dplyr::distinct() %>% 
+  tidyr::drop_na() %>% 
+  dplyr::pull(lad_code_gcs_data_audit) %>%
+  c(lad_other_values$lad_code_gcs_data_audit) %>%
+  as.character() %>% 
+  makeRegexFromCharacterVector()
+
 col_config <-
   col_config_raw %>%
   tibble::add_column(discrete_regexes) %>%
@@ -50,8 +71,10 @@ col_config <-
   dplyr::rowwise() %>%
   dplyr::mutate(
     allowed_regex = dplyr::case_when(
+      (completion_mode == "discrete_choices_large") & (col_id == "LAD") ~ lad_regex,
       completion_mode == "discrete_choices_large" ~ org_regex,
-      discrete_regexes != "NULL" ~ discrete_regexes,!is.na(allowed_regex_initial) ~ allowed_regex_initial,
+      discrete_regexes != "NULL" ~ discrete_regexes,
+      !is.na(allowed_regex_initial) ~ allowed_regex_initial,
       T ~ NA_character_
     )
   ) %>%
