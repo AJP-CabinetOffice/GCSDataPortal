@@ -1,18 +1,21 @@
 checkEmailAddressIsValid <- function(email_to_check, debug) {
   
+  message("Email address submitted = ", email_to_check)
+  
   result <-
     stringr::str_detect(email_to_check, pattern = "^.{1,}@.{1,}$")
   
-  if (debug){
-    func_name <- sys.call()[1]
-    message(func_name, "\tEmail address submitted = ", email_to_check)
-    message(func_name, "\tDid the email address pass the test? ", result)
-  }
+  message("Did the email address pass the test? ", result)
+  
+  if (debug){}
   
   return(result)
 }
 
 checkAllColumnsArePresent <- function(df, col_config, debug) {
+  
+  message("Checking all columns are present...")
+  
   columns_in_data <- colnames(df)
   
   columns_expected <- col_config$col_id
@@ -31,6 +34,8 @@ checkAllColumnsArePresent <- function(df, col_config, debug) {
     dplyr::summarise(overall_result = prod(value)) %>%
     dplyr::pull(overall_result) %>%
     as.logical()
+  
+  message("Result of check = ", result)
   
   if (debug) {
     func_name <- sys.call()[1]
@@ -58,13 +63,16 @@ checkAllColumnsArePresent <- function(df, col_config, debug) {
 }
 
 checkNoExtraCols <- function(df, col_config) {
+  
+  message("Checking that there are no extra columns...")
+  
   columns_in_data <- colnames(df)
   
   columns_expected <- col_config$col_id
   
   names(columns_in_data) <- columns_in_data
   
-  columns_present <-
+  result <-
     columns_in_data  %>%
     purrr::map_df(.f <- function(.x) {
       .x %in% columns_expected
@@ -73,11 +81,18 @@ checkNoExtraCols <- function(df, col_config) {
     dplyr::summarise(overall_result = prod(value)) %>%
     dplyr::pull(overall_result) %>%
     as.logical()
+  
+  message("Result of check = ", result)
+  
+  return(result)
 }
 
 checkAllColumnsContents <- function(df,
                                     col_config,
                                     debug) {
+  
+  message("Making a dataframe to check the contents of columns...")
+  
   df_intermediate <-
     df
   
@@ -107,36 +122,42 @@ checkAllColumnsContents <- function(df,
     col_config_reordered$numeric_range_max
   
   for (i in 1:length(regex_checks)) {
-    # Numeric ranges are handled differently.
-    # Numeric ranges are marked as "continuous_number" in the config file; handle them first by checking if it is in the correct range.
-    # If it isn't a "continuous_number" then use the provided regex to check instead.
-    if (col_mode[i] == "continuous_number") {
-      df_intermediate <-
-        df_intermediate %>%
-        dplyr::mutate(
-          ## Try to see if the number is between two values.
-          ## If a warning occurs it is likely because the raw value cannot be coerced to a number, so it fails the test.
-          "check_passed_{col_names[i]}_numeric" := dplyr::case_when(
-            stringr::str_detect(!!rlang::sym(col_names[i]), pattern = "^\\*\\*$") ~ T,
-            is.na(as.numeric(!!rlang::sym(col_names[i]))) ~ F,
-            T ~ dplyr::between(!!rlang::sym(col_names[i]), range_min[i], range_max[i])
+    ## Check that the qa check to be performed is taking place on a column
+    ## that was actually submitted.
+    if(col_names[i] %in% colnames(df)){
+      # Numeric ranges are handled differently.
+      # Numeric ranges are marked as "continuous_number" in the config file; handle them first by checking if it is in the correct range.
+      # If it isn't a "continuous_number" then use the provided regex to check instead.
+      if (col_mode[i] == "continuous_number") {
+        df_intermediate <-
+          df_intermediate %>%
+          dplyr::mutate(
+            ## Try to see if the number is between two values.
+            ## If a warning occurs it is likely because the raw value cannot be coerced to a number, so it fails the test.
+            "check_passed_{col_names[i]}_numeric" := dplyr::case_when(
+              stringr::str_detect(!!rlang::sym(col_names[i]), pattern = "^\\*\\*$") ~ T,
+              is.na(suppressWarnings(as.numeric(!!rlang::sym(col_names[i])))) ~ F,
+              T ~ suppressWarnings(dplyr::between(as.numeric(!!rlang::sym(col_names[i])), as.numeric(range_min[i]), as.numeric(range_max[i])))
+            )
           )
-        )
-    } else {
-      df_intermediate <-
-        df_intermediate %>%
-        dplyr::mutate(
-          "check_passed_{col_names[i]}_regex" := dplyr::case_when(
-            is.na(!!rlang::sym(col_names[i])) ~ F,
-            T ~ stringr::str_detect(!!rlang::sym(col_names[i]), pattern = unlist(regex_checks[i]))
+      } else {
+        df_intermediate <-
+          df_intermediate %>%
+          dplyr::mutate(
+            "check_passed_{col_names[i]}_regex" := dplyr::case_when(
+              is.na(!!rlang::sym(col_names[i])) ~ F,
+              T ~ stringr::str_detect(!!rlang::sym(col_names[i]), pattern = unlist(regex_checks[i]))
+            )
           )
-        )
+      }
     }
   }
+  
   df_result = df_intermediate
   
   if (debug) {
-    
+    message("Columns in provided data = ", colnames(df))
+    assign("df_result", df_result, envir = .GlobalEnv)
   }
   
   return(df_result)
@@ -145,6 +166,9 @@ checkAllColumnsContents <- function(df,
 didAllColumnsContentsPass <- function(df,
                                       col_config,
                                       col_check_prefix) {
+  
+  message("Checking if all column contents passed...")
+  
   col_names <-
     col_config$col_id
   
@@ -165,6 +189,8 @@ didAllColumnsContentsPass <- function(df,
     passed_checks %>%
     dplyr::summarise(check_passed_ALL = as.logical(prod(value))) %>%
     dplyr::pull(check_passed_ALL)
+  
+  message("Result of check = ", passed_checks)
   
   return(passed_checks)
 }
@@ -233,6 +259,9 @@ makeRegexFromAllowedValues <- function(allowed_codes) {
 }
 
 detectNilReturn <- function(df, debug) {
+  
+  message("Checking if it is a nil return...")
+  
   ## Start by checking that the ORG column exists.
   result <-
     if (!is.null(df$ORG)) {
@@ -262,6 +291,8 @@ detectNilReturn <- function(df, debug) {
     message(func_name, "\t\tName of check = ", func_name)
     message(func_name, "\t\tNumber of rows in dataframe = ", nrow(df))
   }
+  
+  message("Result of check = ", result)
   
   return(result)
 }

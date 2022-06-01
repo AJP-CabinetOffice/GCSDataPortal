@@ -4,24 +4,34 @@ library(magrittr)
 source("functions.R")
 
 debug = F
+development_configuration = T
 
 ## Set up AWS credentials and variables
-
-env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
-
-Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
-           "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
-           "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
-
-s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
-
+if(development_configuration){
+  auth <- jsonlite::read_json("~/Codes/Analysis_RGCS/s3_auth_mmd.json")
+  
+  Sys.setenv("AWS_ACCESS_KEY_ID" = auth$aws_access_key_id,
+             "AWS_SECRET_ACCESS_KEY" = auth$aws_secret_access_key,
+             "AWS_DEFAULT_REGION" = auth$aws_region)
+  
+  s3_bucket = auth$bucket_name
+} else {
+  env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
+  
+  Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
+             "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
+             "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
+  
+  s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
+}
+  
 ## This is used in functions that check the col_names.
 col_check_prefix <- "check_passed_"
 
 # Read in the configuration file.
 col_config_raw <-
   readr::read_csv(
-    "~/Codes/GCSDataPortal/webapp/2022-05-20 Column configuration OFFICIAL - Sheet 1.csv",
+    "2022-05-25 Column configuration OFFICIAL - Sheet 1.csv",
     col_types = readr::cols(.default = "c")
   ) %>%
   ## Remove withdrawn columns
@@ -34,7 +44,7 @@ discrete_regexes <-
 
 org_regex <-
   readxl::read_excel(
-    "2022-05-10_16-01-00_BST Organisations list for DoCs.xlsx",
+    "List of Organisation v1.04 - GCS Data Audit 2022 OFFICIAL.xlsx",
     sheet = "Organisations Table",
     col_types = "text",
     .name_repair = janitor::make_clean_names
@@ -110,8 +120,8 @@ ui <- shiny::fluidPage(
 
 # Define server logic
 server <- function(input, output) {
+  
   checkEmailAddressIsValidReactive <- shiny::reactive({
-    message(input$email1)
     checkEmailAddressIsValid(input$email1, debug)
   })
   
@@ -130,6 +140,8 @@ server <- function(input, output) {
   
   readData <- shiny::reactive({
     shiny::req(input$file1$datapath)
+    
+    message("Reading uploaded data...")
     
     if (input$file1$type == "text/csv") {
       data <- tryCatch(
@@ -331,6 +343,8 @@ server <- function(input, output) {
     shiny::req(input$file1$datapath)
     result <- wasSubmissionAcceptedReactive()
     
+    message("Writing submission to S3...")
+    
     sysdatetime <- Sys.time() %>%
       format("%Y-%m-%dT%H:%M:%S_%Z")
     
@@ -339,6 +353,8 @@ server <- function(input, output) {
     } else {
       "qa_failed"
     }
+    
+    message("Writing to folder ", folder_qa)
     
     file_uniqueness <- input$file1$datapath %>%
       stringr::str_split(pattern = "/") %>%
