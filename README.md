@@ -12,12 +12,8 @@ While authenticated on CloudFoundry, navigate to the top level directory in this
 
 ### Critical 
 
-- Complete data checking
-  - Check that all columns are present.
-  - Reject if extra columns exist that are not expected.
 - Setup dependabot
 
 ### Nice to have
 
 - Make the webapp more visually appealing
-- Track usage
