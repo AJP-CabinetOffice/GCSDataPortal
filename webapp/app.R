@@ -4,27 +4,27 @@ library(magrittr)
 source("functions.R")
 
 debug = F
-development_configuration = T
+development_configuration = F
 
 ## Set up AWS credentials and variables
 if(development_configuration){
   auth <- jsonlite::read_json("~/Codes/Analysis_RGCS/s3_auth_mmd.json")
-  
+
   Sys.setenv("AWS_ACCESS_KEY_ID" = auth$aws_access_key_id,
              "AWS_SECRET_ACCESS_KEY" = auth$aws_secret_access_key,
              "AWS_DEFAULT_REGION" = auth$aws_region)
-  
+
   s3_bucket = auth$bucket_name
 } else {
   env_vcap_services <- Sys.getenv("VCAP_SERVICES") %>% rjson::fromJSON()
-  
+
   Sys.setenv("AWS_ACCESS_KEY_ID" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_access_key_id,
              "AWS_SECRET_ACCESS_KEY" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_secret_access_key,
              "AWS_DEFAULT_REGION" = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$aws_region)
-  
+
   s3_bucket = env_vcap_services$`aws-s3-bucket`[[1]]$credentials$bucket_name
 }
-  
+
 ## This is used in functions that check the col_names.
 col_check_prefix <- "check_passed_"
 
@@ -44,7 +44,7 @@ discrete_regexes <-
 
 org_regex <-
   readxl::read_excel(
-    "List of Organisation v1.04 - GCS Data Audit 2022 OFFICIAL.xlsx",
+    "List of Organisations v1.07 - GCS Data Audit 2022 OFFICIAL.xlsx",
     sheet = "Organisations Table",
     col_types = "text",
     .name_repair = janitor::make_clean_names
@@ -53,25 +53,25 @@ org_regex <-
   c("99", "**") %>%
   makeRegexFromCharacterVector()
 
-lad_other_values <- 
+lad_other_values <-
   readr::read_csv(
     "2022-05-23_15-41-49_BST Other values LAD lookup OFFICIAL.csv",
     col_types = "c",
     name_repair = janitor::make_clean_names
   )
 
-lad_regex <- 
+lad_regex <-
   readr::read_csv(
     "2022-05-24_11-25-05_BST Postcode to LAD lookup OFFICIAL.csv",
     col_types = "c",
     col_select = 3,
     name_repair = janitor::make_clean_names
   ) %>%
-  dplyr::distinct() %>% 
-  tidyr::drop_na() %>% 
+  dplyr::distinct() %>%
+  tidyr::drop_na() %>%
   dplyr::pull(lad_code_gcs_data_audit) %>%
   c(lad_other_values$lad_code_gcs_data_audit) %>%
-  as.character() %>% 
+  as.character() %>%
   makeRegexFromCharacterVector()
 
 col_config <-
@@ -120,11 +120,11 @@ ui <- shiny::fluidPage(
 
 # Define server logic
 server <- function(input, output) {
-  
+
   checkEmailAddressIsValidReactive <- shiny::reactive({
     checkEmailAddressIsValid(input$email1, debug)
   })
-  
+
   output$file_upload <- shiny::renderUI({
     shiny::validate(
       shiny::need(
@@ -132,17 +132,17 @@ server <- function(input, output) {
         "Enter a valid email address to continue."
       )
     )
-    
+
     fileInput("file1",
               "Upload your file:")
   })
-  
-  
+
+
   readData <- shiny::reactive({
     shiny::req(input$file1$datapath)
-    
+
     message("Reading uploaded data...")
-    
+
     if (input$file1$type == "text/csv") {
       data <- tryCatch(
         readr::read_csv(input$file1$datapath),
@@ -153,10 +153,10 @@ server <- function(input, output) {
     } else {
       data <- F
     }
-    
+
     return(data)
   })
-  
+
   didDataReadReactive <- shiny::reactive({
     if (tibble::is_tibble(readData())) {
       T
@@ -164,28 +164,28 @@ server <- function(input, output) {
       F
     }
   })
-  
+
   detectNilReturnReactive <- shiny::reactive({
     detectNilReturn(readData(), debug)
   })
-  
+
   checkAllColumnsArePresentReactive <- shiny::reactive({
     checkAllColumnsArePresent(readData(), col_config, debug)
   })
-  
+
   checkNoExtraColsReactive <- shiny::reactive({
     checkNoExtraCols(readData(), col_config)
   })
-  
+
   checkAllColumnsContentsReactive <- shiny::reactive({
     checkAllColumnsContents(readData(), col_config, debug)
   })
-  
+
   didAllColumnsContentsPassReactive <- shiny::reactive({
     df <- checkAllColumnsContentsReactive()
     didAllColumnsContentsPass(df, col_config, col_check_prefix)
   })
-  
+
   wasSubmissionAcceptedReactive <- shiny::reactive({
     if (detectNilReturnReactive()) {
       overall_result <- T
@@ -196,69 +196,69 @@ server <- function(input, output) {
           checkNoExtraColsReactive(),
           didAllColumnsContentsPassReactive()
         )
-      
+
       overall_result <- as.logical(prod(results))
-      
+
     }
-    
+
     return(overall_result)
-    
+
   })
-  
+
   output$panel_feedback <- shiny::renderUI({
     result_data_readin <- didDataReadReactive()
-    
+
     if (debug) {
       message("Did data read in as a tibble? ", result_data_readin)
     }
-    
+
     result_nil_return <- if (result_data_readin) {
       detectNilReturnReactive()
     } else {
       F
     }
-    
+
     if (debug) {
       message("Was it a nil return? ", result_nil_return)
     }
-    
+
     result_all_cols_present <-
       if (result_data_readin & !result_nil_return) {
         checkAllColumnsArePresentReactive()
       } else {
         F
       }
-    
+
     if (debug) {
       message("Were all expected columns present? ",
               result_all_cols_present)
     }
-    
+
     result_no_extra_cols <-
       if (result_data_readin & !result_nil_return) {
         checkNoExtraColsReactive()
       } else {
         F
       }
-    
+
     if (debug) {
       message("Were there no extra columns? ", result_no_extra_cols)
     }
-    
+
     result_column_contents <-
       if (result_all_cols_present & result_no_extra_cols) {
         didAllColumnsContentsPassReactive()
       } else {
         F
       }
-    
+
     if (debug) {
       message("Was the content of the cells acceptable? ",
               result_column_contents)
     }
-    
+
     writeSubmissionToS3()
-    
+
     if (result_data_readin &
         result_all_cols_present &
         result_no_extra_cols & result_column_contents) {
@@ -283,29 +283,29 @@ server <- function(input, output) {
       )
     }
   })
-  
+
   output$datatable <- DT::renderDataTable({
     shiny::req(didDataReadReactive())
     shiny::req(checkAllColumnsArePresentReactive())
     shiny::req(checkNoExtraColsReactive())
     shiny::req(!detectNilReturnReactive())
-    
+
     result <- wasSubmissionAcceptedReactive()
-    
+
     shiny::req(!result)
-    
+
     df_tested <- checkAllColumnsContentsReactive()
-    
+
     col_names_raw_data <-
       colnames(df_tested)[colnames(df_tested) %in% col_config$col_id]
-    
+
     col_names_qa <-
       colnames(df_tested)[colnames(df_tested) %>% stringr::str_detect(pattern = paste0("^", col_check_prefix))]
-    
+
     qa_col_indices <-
       match(col_names_qa,
             colnames(df_tested))
-    
+
     df_tested %>%
       DT::datatable(options = list(
         paging = F,
@@ -319,7 +319,7 @@ server <- function(input, output) {
                       col_names_qa,
                       backgroundColor = DT::styleEqual(c(T, F), c("white", "yellow")))
   })
-  
+
   passesColNameCheck <- shiny::reactive({
     result <-
       readData() %>%
@@ -333,63 +333,63 @@ server <- function(input, output) {
           return(res)
         }
       )
-    
+
     contents_result = prod(as.numeric(result))
-    
+
     return(contents_result)
   })
-  
+
   writeSubmissionToS3 <- shiny::reactive({
     shiny::req(input$file1$datapath)
     result <- wasSubmissionAcceptedReactive()
-    
+
     message("Writing submission to S3...")
-    
+
     sysdatetime <- Sys.time() %>%
       format("%Y-%m-%dT%H:%M:%S_%Z")
-    
+
     folder_qa <- if (result) {
       "qa_passed"
     } else {
       "qa_failed"
     }
-    
+
     message("Writing to folder ", folder_qa)
-    
+
     file_uniqueness <- input$file1$datapath %>%
       stringr::str_split(pattern = "/") %>%
       unlist() %>%
       tail(n = 2) %>%
       head(n = 1)
-    
+
     folder_name <- paste(sysdatetime, file_uniqueness)
-    
+
     full_filename_raw <-
       paste(folder_qa, folder_name, "RAW OFFICIAL-SENSITIVE.csv", sep = "/")
-    
+
     aws.s3::put_object(input$file1$datapath,
                        full_filename_raw,
                        s3_bucket)
-    
+
     if(!detectNilReturnReactive()){
       analysis_result <- checkAllColumnsContentsReactive()
-      
+
       full_filename_qa <-
         paste(folder_qa, folder_name, "QA OFFICIAL-SENSITIVE.csv", sep = "/")
-      
+
       aws.s3::s3write_using(analysis_result,
                             readr::write_excel_csv,
                             object = full_filename_qa,
                             bucket = s3_bucket)
     }
-    
-    submitter_email <- 
-      input$email1 %>% 
+
+    submitter_email <-
+      input$email1 %>%
       as.data.frame()
-    
+
     full_filename_email <-
       paste(folder_qa, folder_name, "CONTACT EMAIL OFFICIAL-SENSITIVE.csv", sep = "/")
-    
+
     aws.s3::s3write_using(submitter_email,
                           readr::write_excel_csv,
                           object = full_filename_email,

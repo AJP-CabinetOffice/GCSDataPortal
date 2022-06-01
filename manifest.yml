@@ -2,5 +2,6 @@
 applications:
 - name: gcsdataportal
   memory: 512M
+  instances: 1
   services:
   - GCS-Data-Portal-Bucket-Production
