@@ -4,7 +4,7 @@ library(magrittr)
 source("functions.R")
 
 debug = F
-development_configuration = T
+development_configuration = F
 
 ## Set up AWS credentials and variables
 if(development_configuration){
@@ -169,6 +169,10 @@ server <- function(input, output) {
     detectNilReturn(readData(), debug)
   })
 
+  checkNilReturnORGColumnReactive <- shiny::reactive({
+    checkORGColumn(readData(), col_config, debug)
+  })
+
   checkAllColumnsArePresentReactive <- shiny::reactive({
     checkAllColumnsArePresent(readData(), col_config, debug)
   })
@@ -187,8 +191,12 @@ server <- function(input, output) {
   })
 
   wasSubmissionAcceptedReactive <- shiny::reactive({
+
     if (detectNilReturnReactive()) {
-      overall_result <- T
+      results <-
+        c(
+          checkNilReturnORGColumnReactive()
+        )
     } else {
       results <-
         c(
@@ -196,10 +204,11 @@ server <- function(input, output) {
           checkNoExtraColsReactive(),
           didAllColumnsContentsPassReactive()
         )
-
-      overall_result <- as.logical(prod(results))
-
     }
+
+    overall_result <- as.logical(prod(results))
+
+    message("Was the submission accepted? ", overall_result)
 
     return(overall_result)
 
@@ -218,8 +227,17 @@ server <- function(input, output) {
       F
     }
 
+    result_nil_return_valid_org <- if(result_nil_return){
+      checkNilReturnORGColumnReactive()
+    } else {
+      F
+    }
+
     if (debug) {
       message("Was it a nil return? ", result_nil_return)
+      if(result_nil_return){
+        (message("Was the ORG valid in the nil return?", result_nil_return_valid_org))
+        }
     }
 
     result_all_cols_present <-
@@ -263,8 +281,10 @@ server <- function(input, output) {
         result_all_cols_present &
         result_no_extra_cols & result_column_contents) {
       shiny::HTML("Success!<br>Thank you for your submission.")
-    } else if (result_data_readin & result_nil_return) {
+    } else if (result_data_readin & result_nil_return & result_nil_return_valid_org) {
       shiny::HTML("Success! Nil return received.<br>Thank you for your submission.")
+    } else if (result_data_readin & result_nil_return & !result_nil_return_valid_org) {
+        shiny::HTML("Your submission was not accepted.<br>The ORG column was not completed correctly.<br>Please resubmit using the code provided in the organisations list.")
     } else if (!result_data_readin) {
       shiny::HTML(
         "Your submission was not accepted.<br>All submissions must be in CSV format. Please resubmit in the correct format."

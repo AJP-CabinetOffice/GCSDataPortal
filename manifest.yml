@@ -1,7 +1,7 @@
 ---
 applications:
-- name: gcsdataportal
+- name: gcsdataportal-staging
   memory: 512M
   instances: 1
   services:
-  - GCS-Data-Portal-Bucket-Production
+  - GCS-Data-Portal-Bucket-Staging
