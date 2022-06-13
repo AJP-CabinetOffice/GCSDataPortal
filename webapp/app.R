@@ -4,7 +4,7 @@ library(magrittr)
 source("functions.R")
 
 debug = F
-development_configuration = F
+development_configuration = T
 
 ## Set up AWS credentials and variables
 if(development_configuration){
@@ -106,7 +106,7 @@ ui <- shiny::fluidPage(
     shiny::HTML("This data portal is for use in the GCS Data Audit 2022."),
     shiny::br(),
     shiny::br(),
-    shiny::textInput("email1", "Enter an email address (shared mailbox preferred)"),
+    shiny::textInput("email1", "Enter an email address - shared mailbox preferred"),
     shiny::uiOutput("panel_email"),
     shiny::br(),
     shiny::uiOutput("file_upload"),
@@ -129,7 +129,7 @@ server <- function(input, output) {
     shiny::validate(
       shiny::need(
         checkEmailAddressIsValidReactive(),
-        "Enter a valid email address to continue."
+        "Enter an email address to continue."
       )
     )
 
