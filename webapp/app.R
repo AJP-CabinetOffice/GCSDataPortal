@@ -217,6 +217,12 @@ server <- function(input, output) {
   output$panel_feedback <- shiny::renderUI({
     result_data_readin <- didDataReadReactive()
 
+
+    if(!result_data_readin){
+      message("Data was not in the correct format.")
+      return(shiny::HTML("Your submission was not accepted.<br>All submissions must be in CSV format.<br>Please resubmit in the correct format."))
+    }
+
     if (debug) {
       message("Did data read in as a tibble? ", result_data_readin)
     }
