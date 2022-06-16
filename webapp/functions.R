@@ -5,11 +5,22 @@ checkEmailAddressIsValid <- function(email_to_check, debug) {
   result <-
     stringr::str_detect(email_to_check, pattern = "^.{1,}@.{1,}$")
 
-  message("Did the email address pass the test? ", result)
+  message("Is the email address in the correct format? ", result)
 
   if (debug){}
 
   return(result)
+}
+
+checkEmailAddressNotReshaping <- function(email_to_check, debug) {
+
+  result <-
+    !stringr::str_detect(email_to_check, pattern = "reshapinggcs@cabinetoffice.gov.uk")
+
+  message("Is the email address NOT the reshapinggcs email? ", result)
+
+  return(result)
+
 }
 
 checkAllColumnsArePresent <- function(df, col_config, debug) {

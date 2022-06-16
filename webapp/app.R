@@ -125,11 +125,20 @@ server <- function(input, output) {
     checkEmailAddressIsValid(input$email1, debug)
   })
 
+  checkEmailAddressNotReshapingReactive <- shiny::reactive({
+    checkEmailAddressNotReshaping(input$email1, debug)
+  })
+
   output$file_upload <- shiny::renderUI({
+
     shiny::validate(
       shiny::need(
         checkEmailAddressIsValidReactive(),
         "Enter an email address to continue."
+      ),
+      shiny::need(
+        checkEmailAddressNotReshapingReactive(),
+        "You must use an email address from your organisation, not the reshaping GCS email."
       )
     )
 
