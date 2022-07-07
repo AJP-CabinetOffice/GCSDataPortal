@@ -44,7 +44,7 @@ discrete_regexes <-
 
 org_regex <-
   readxl::read_excel(
-    "List of Organisations v1.13 - GCS Data Audit 2022 OFFICIAL.xlsx",
+    "List of Organisations v1.15 - GCS Data Audit 2022 OFFICIAL.xlsx",
     sheet = "Organisations Table",
     col_types = "text",
     .name_repair = janitor::make_clean_names
