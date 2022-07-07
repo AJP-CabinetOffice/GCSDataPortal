@@ -151,8 +151,19 @@ server <- function(input, output) {
     shiny::req(input$file1$datapath)
 
     message("Reading uploaded data...")
+    message("MIME type of file = ", input$file1$type)
 
-    if (input$file1$type == "text/csv") {
+    file_extension <-
+      input$file1$name %>%
+      stringr::str_split(pattern = "\\.") %>%
+      unlist() %>%
+      tail(n = 1)
+
+    message("File extension = ", file_extension)
+
+    message("File extension dtype = ", typeof(file_extension))
+
+    if (input$file1$type == "text/csv" | file_extension %in% c("csv", "CSV", "Csv")) {
       data <- tryCatch(
         readr::read_csv(input$file1$datapath),
         error = function(e) {
